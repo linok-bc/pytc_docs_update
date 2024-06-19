@@ -30,30 +30,19 @@ Download the dataset from our server:
 
 .. code-block:: bash
 
-    wget http://rhoana.rc.fas.harvard.edu/dataset/lucchi.zip
+    mkdir -p datasets/Lucchi
+    wget -q --show-progress -O lucchi.zip http://rhoana.rc.fas.harvard.edu/dataset/lucchi.zip
+    unzip -d datasets/Lucchi datasets/lucchi.zip
+    rm lucchi.zip
 
 For description of the data please check `the author page <https://www.epfl.ch/labs/cvlab/data/data-em/>`_.
 
 2 - Run training
 ^^^^^^^^^^^^^^^^
-If using a single GPU:
-
 .. code-block:: bash
 
     source activate pytc
-    python scripts/main.py -u --config-file configs/Lucchi-Mitochondria.yaml
-
-
-If using multiple GPUs for higher performance, modify ``configs/Lucchi-Mitochondria.yaml`` to reflect the number of available GPUs and instead use:
-
-.. code-block:: bash
-
-    source activate pytc
-    CUDA_VISIBLE_DEVICES=0,1,2,3 python -u -m torch.distributed.run \
-    --nproc_per_node=4 --master_port=2345 scripts/main.py --distributed \
-    --config-file configs/Lucchi-Mitochondria.yaml
-
-Similar to the `neuron segmentation <neuron.html>`_ tutorial, we use distributed data-parallel training due to its high efficiency and to enable synchronized batch normalization (SyncBN).
+    python scripts/main.py --config-file configs/Lucchi-Mitochondria.yaml
 
 3 (*optional*) - Visualize the training progress
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -68,35 +57,22 @@ Similar to the `neuron segmentation <neuron.html>`_ tutorial, we use distributed
 .. code-block:: bash
 
     source activate pytc
-    python scripts/main.py -u \
+    python scripts/main.py \
     --config-file configs/Lucchi-Mitochondria.yaml --inference \
-    --checkpoint outputs/Lucchi_UNet/volume_100000.pth.tar
+    --checkpoint outputs/Lucchi_UNet/checkpoint_100000.pth.tar
 
 5 - Run evaluation
 ^^^^^^^^^^^^^^^^^^
 
-Since the ground-truth label of the test set is public, we can run the evaluation locally:
+Since the ground-truth label of the test set is public, we can run the evaluation locally. A script is provided:
 
-.. code-block:: python
+.. code-block:: bash
 
-    from connectomics.utils.evaluation import get_binary_jaccard
-    pred = (pred / 255).astype(np.uint8) # output is casted to uint8 with range [0,255].
-    gt = (gt!==0).astype(np.uint8)
-    thres = [0.4, 0.6, 0.8] # evaluate at multiple thresholds.
-    scores = get_binary_jaccard(pred, gt, thres)
+    python scripts/tutorials/lucchi_eval.py
 
-The prediction can be further improved by conducting median filtering to remove noise:
+..
 
-.. code-block:: python
-
-    from connectomics.utils.evaluate import get_binary_jaccard
-    from connectomics.utils.process import binarize_and_median
-    pred = (pred / 255).astype(np.uint8) # output is casted to uint8 with range [0,255].
-    pred = binarize_and_median(pred, size=(7,7,7), thres=0.8)
-    gt = (gt!==0).astype(np.uint8)
-    scores = get_binary_jaccard(pred, gt) # prediction is already binarized
-
-Our pretained model achieves a foreground IoU and IoU of **0.892** and **0.943** on the test set, respectively. The results are better or on par with state-of-the-art approaches. Please check `BENCHMARK.md <https://github.com/zudi-lin/pytorch_connectomics/blob/master/BENCHMARK.md>`_  for detailed performance comparison and the pre-trained models.
+    .. note:: Our pretained model achieves a foreground IoU and IoU of **0.892** and **0.943** on the test set, respectively. The results are better or on par with state-of-the-art approaches. Please check `BENCHMARK.md <https://github.com/zudi-lin/pytorch_connectomics/blob/master/BENCHMARK.md>`_  for detailed performance comparison and the pre-trained models.
 
 Instance Segmentation
 ---------------------
@@ -109,10 +85,6 @@ This section provides step-by-step guidance for mitochondria segmentation with t
 
 Complex mitochondria in the MitoEM dataset:(**a**) mitochondria-on-a-string (MOAS), and (**b**) dense tangle of touching instances. Those challenging cases are prevalent but not covered in previous datasets.
 
-    .. note:: The MitoEM dataset has two sub-datasets **MitoEM-Rat** and **MitoEM-Human** based on the source of the tissues. Three training configuration files on **MitoEM-Rat** are provided in ``pytorch_connectomics/configs/MitoEM/`` for different learning setting as described in this `paper <https://donglaiw.github.io/paper/2020_miccai_mitoEM.pdf>`_.
-
-..
-
    .. note:: Since the dataset is very large and can not be directly loaded into memory, we designed the :class:`connectomics.data.dataset.TileDataset` class that only loads part of the whole volume each time by opening involved ``PNG`` or ``TIFF`` images.
 
 ..
@@ -122,15 +94,28 @@ Complex mitochondria in the MitoEM dataset:(**a**) mitochondria-on-a-string (MOA
 1 - Dataset introduction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-The dataset is publicly available at both the `project <https://donglaiw.github.io/page/mitoEM/index.html>`_ page and
-the `MitoEM Challenge <https://mitoem.grand-challenge.org/>`_ page. To provide a brief description of the dataset:
+The dataset is publicly available at the `MitoEM Challenge <https://mitoem.grand-challenge.org/>`_ page. To provide a brief description of the dataset:
 
 - ``im``: includes 1,000 single-channel ``*.png`` files (**4096x4096**) of raw EM images (with a spatial resolution of **30x8x8** nm).
   The 1,000 images are splited into 400, 100 and 500 slices for training, validation and inference, respectively.
 
 - ``mito_train/``: includes 400 single-channel ``*.png`` files (**4096x4096**) of instance labels for training. Similarly, the ``mito_val/`` folder contains 100 slices for validation. The ground-truth annotation of the test set (rest 500 slices) is not publicly provided but can be evaluated online at the `MitoEM challenge page <https://mitoem.grand-challenge.org>`_.
 
-2 - Model configuration
+2 - Get the data
+^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+  
+  mkdir -p datasets/MitoEM
+  wget -q --show-progress -O datasets/MitoEM/EM30-R-im.zip https://huggingface.co/datasets/pytc/EM30/resolve/main/EM30-R-im.zip?download=true
+  unzip -q datasets/MitoEM/EM30-R-im.zip -d datasets/MitoEM/EM30-R-im
+  rm -r datasets/MitoEM/EM30-R-im/__MACOSX
+  rm datasets/MitoEM/EM30-R-im.zip
+  wget -q --show-progress -O datasets/MitoEM/mito_val.zip https://huggingface.co/datasets/pytc/MitoEM/resolve/main/EM30-R-mito-train-val-v2.zip?download=true
+  unzip -q datasets/MitoEM/mito_val.zip -d datasets/MitoEM/EM30-R-val
+  rm datasets/MitoEM/mito_val.zip
+
+3 - Model configuration
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 Multiple ``*.yaml`` configuration files are provided at ``configs/MitoEM`` for different learning targets:
@@ -143,7 +128,7 @@ Multiple ``*.yaml`` configuration files are provided at ``configs/MitoEM`` for d
 
 The lattermost configuration achieves the best overall performance according to our `experiments <https://donglaiw.github.io/paper/2020_miccai_mitoEM.pdf>`_. This tutorial will move forward using this configuration file.
 
-3 - Run training
+4 - Run training
 ^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
@@ -154,16 +139,14 @@ The lattermost configuration achieves the best overall performance according to 
 
 ..
 
-    .. note:: By default the path of images and labels are not specified. To run the training scripts, please revise the ``DATASET.IMAGE_NAME``, ``DATASET.LABEL_NAME``, ``DATASET.OUTPUT_PATH`` and ``DATASET.INPUT_PATH`` options in ``configs/MitoEM/MitoEM-R-*.yaml``. The options can also be given as command-line arguments without changing of the ``yaml`` configuration files.
-
-4 (*optional*) - Visualize the training progress
+5 (*optional*) - Visualize the training progress
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
     tensorboard --logdir outputs/MitoEM_R_BC/
 
-5 - Run inference
+6 - Run inference
 ^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
@@ -172,10 +155,6 @@ The lattermost configuration achieves the best overall performance according to 
     --config-base configs/MitoEM/MitoEM-R-Base.yaml \
     --config-file configs/MitoEM/MitoEM-R-BC.yaml --inference \
     --checkpoint outputs/MitoEM_R_BC/checkpoint_100000.pth.tar
-
-..
-
-   .. note:: If training on personal data, please change the ``INFERENCE.IMAGE_NAME`` ``INFERENCE.OUTPUT_PATH`` ``INFERENCE.OUTPUT_NAME`` options in ``configs/MitoEM-R-*.yaml`` based on your own data path.
 
 6 - Post-process
 ^^^^^^^^^^^^^^^^
@@ -207,32 +186,4 @@ The post-processing step requires merging output volumes and applying watershed 
     # Please allocate enough memory for processing.
     segm = bc_watershed(pred, thres1=0.85, thres2=0.6, thres3=0.8, thres_small=1024)
 
-..
-
-   .. note:: The decoding parameters for the watershed step are a set of reasonable thresholds but not optimal given different segmentation models. We suggest conducting a hyper-parameter search on the validation set to decide the decoding parameters.   
-
 The generated segmentation map should be ready for submission to the `MitoEM <https://mitoem.grand-challenge.org/>`_ challenge website for evaluation. Please note that this tutorial only outlines training on **MitoEM-Rat** subset. Results on the **MitoEM-Human** subset, which can be generated using a similar pipeline as above, also need to be provided for online evaluation.
-
-7 (*optional*)- Evaluate on the validation set
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Performance on the MitoEM test data subset can only be evaluated on the Grand Challenge website. Users are encouraged to experiment with the metric code on the validation data subset to optimize performance and understand the Challenge's evaluation process. Evaluation is performed with the ``demo.py`` file provided by the `mAP_3Dvolume <https://github.com/ygCoconut/mAP_3Dvolume/tree/master>`__ repository. The ground truth ``.h5`` file can be generated from the 2D images using the following script:
-
-.. code-block:: python
-
-  import glob
-  import numpy as np
-  from connectomics.data.utils import writeh5, readvol
-
-  gt_path = "datasets/MitoEM_R/mito_val/*.tif"
-  files = sorted(glob.glob(gt_path))
-  
-  data = []
-  for i, file in enumerate(files):
-      print("process chunk: ", i)
-      data.append(readvol(file))
-
-  data = np.array(data)
-  writeh5("validation_gt.h5", data)
-
-The resulting scores can then be obtained by executing ``python demo.py -gt {path to validation ground truth}.h5 -p {path to segmentation result}.h5``

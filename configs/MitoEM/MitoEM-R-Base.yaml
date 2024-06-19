@@ -12,7 +12,7 @@ MODEL:
 DATASET:
   IMAGE_NAME: ["im_train.json"]
   LABEL_NAME: ["mito_train.json"]
-  INPUT_PATH: datasets/MitoEM_R/ # or your own dataset path
+  INPUT_PATH: datasets/MitoEM/EM30-R-im/im # or your own dataset path
   OUTPUT_PATH: outputs/MitoEM_R/
   PAD_SIZE: [4, 64, 64]
   DO_CHUNK_TITLE: 1
