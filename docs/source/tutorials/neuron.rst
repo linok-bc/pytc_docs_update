@@ -1,27 +1,16 @@
 Neuron Segmentation
 =====================
 
-This tutorial provides step-by-step guidance for neuron segmentation with SENMI3D benchmark datasets.
-Dense neuron segmentation in electronic microscopy (EM) images belongs to the category of **instance segmentation**.
-The methodology is to first predict the affinity map (the connectivity of each pixel to neighboring pixels)
-with an encoder-decoder ConvNets and then generate the segmentation map using a standard
-segmentation algorithm (*e.g.*, watershed).
+This tutorial provides step-by-step guidance for neuron segmentation with SNEMI3D benchmark datasets. Dense neuron segmentation in electronic microscopy (EM) images belongs to the category of **instance segmentation**. The methodology is to first predict the affinity map (the connectivity of each pixel to neighboring pixels) with an encoder-decoder ConvNet and then generate the segmentation map using a standard segmentation algorithm (*e.g.*, watershed).
 
-The evaluation of segmentation results is based on the `Rand Index <https://en.wikipedia.org/wiki/Rand_index>`_
-and `Variation of Information <https://en.wikipedia.org/wiki/Variation_of_information>`_.
-
-    .. tip:: 
-        Before running neuron segmentation, please take a look at the `notebooks <https://github.com/zudi-lin/pytorch_connectomics/tree/master/notebooks>`_ to get familiar with the datasets and available utility functions in this package.
-
-The main script to run the training and inference is ``pytorch_connectomics/scripts/main.py``.
-The pytorch target affinity generation is :class:`connectomics.data.dataset.VolumeDataset`.
+The evaluation of segmentation results is based on the `Rand Index <https://en.wikipedia.org/wiki/Rand_index>`_ and `Variation of Information <https://en.wikipedia.org/wiki/Variation_of_information>`_.
 
 Neighboring affinity learning
--------------------------------
+-----------------------------
 
 The affinity value between two neighboring pixels (voxels) is 1 if they belong to the same instance and 0 if
 they belong to different instances or at least one of them is a background pixel (voxel). An affinity map can
-be regarded as a more informative version of boundary map as it contains the affinity to two directions in 2D inputs and three directions (`z`, `y` and `x` axes) in 3D inputs.
+be regarded as a more informative version of a boundary map as it contains the affinity to two directions in 2D inputs and three directions (`z`, `y` and `x` axes) in 3D inputs.
 
 .. figure:: ../_static/img/snemi_affinity.png
     :align: center
@@ -31,14 +20,16 @@ The figure above shows examples of EM images, segmentation and affinity map from
 3D affinity map has 3 channels, we can visualize them as RGB images.
 
 
-    .. tip:: A notebook for visualizing results is provided for users in the `Github repository <https://github.com/zudi-lin/pytorch_connectomics/tree/master/notebooks/tutorial_benchmarks/snemi_benchmark.ipynb>`_. Users are able to download this notebook and produce evaluation results using a pretrained benchmark. Due to incompatiability with Colab and neuroglancer, it is recommended that users utilize a personal computer/HPC with at least 12GB of video RAM.
+    .. tip:: A notebook for visualizing results is provided for users in the `Github repository <https://github.com/zudi-lin/pytorch_connectomics/tree/master/notebooks/tutorial_benchmarks/snemi_benchmark.ipynb>`_. Users are able to download this notebook and produce evaluation results using a pretrained benchmark. Note that Neuroglancer will only work if using Google Chrome.
 
 1 - Get the data
 ^^^^^^^^^^^^^^^^^^
 
 .. code-block:: none
 
-    wget http://rhoana.rc.fas.harvard.edu/dataset/snemi.zip
+    mkdir -p datasets/SNEMI
+    wget -q --show-progress -O datasets/SNEMI/snemi.zip http://rhoana.rc.fas.harvard.edu/dataset/snemi.zip
+    unzip datasets/SNEMI/snemi.zip
 
 ..
 
@@ -62,15 +53,6 @@ Provide the **YAML** configuration files to run training:
    python -u scripts/main.py \
    --config-base configs/SNEMI/SNEMI-Base.yaml \
    --config-file configs/SNEMI/SNEMI-Foreground-UNet.yaml
-
-Or if using multiple GPUs for higher performance:
-
-.. code-block:: none
-
-    CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -u -m torch.distributed.run \
-    --nproc_per_node=2 --master_port=1234 scripts/main.py --distributed \
-    --config-base configs/SNEMI/SNEMI-Base_multiGPU.yaml \
-    --config-file configs/SNEMI/SNEMI-Affinity-UNet.yaml
 
 The configuration files for training can be found in ``configs/SNEMI/``.
 We usually create a ``datasets/`` folder under ``pytorch_connectomics`` and put the SNEMI dataset there.
